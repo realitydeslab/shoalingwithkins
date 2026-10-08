@@ -1,0 +1,35 @@
+# Unity (project in app/)
+app/[Ll]ibrary/
+app/[Tt]emp/
+app/[Oo]bj/
+app/[Bb]uild/
+app/[Bb]uilds/
+app/[Ll]ogs/
+app/[Uu]ser[Ss]ettings/
+app/MemoryCaptures/
+app/*.csproj
+app/*.sln
+app/*.slnx
+app/*.user
+app/*.pidb
+app/*.booproj
+app/*.svd
+app/*.pdb
+app/*.mdb
+app/*.opendb
+app/*.VC.db
+app/.vs/
+app/.idea/
+app/mono_crash.*
+
+# Secrets: the OpenRouter key the setup script copies into the app bundle
+app/Assets/StreamingAssets/openrouter_api_key.txt
+app/Assets/StreamingAssets/openrouter_api_key.txt.meta
+.env
+.env.*
+
+# Tools
+__pycache__/
+tools/out/
+
+.DS_Store
