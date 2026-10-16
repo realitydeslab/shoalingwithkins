@@ -10,6 +10,8 @@ using ShoalingWithKin;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
+using UnityEditor.Callbacks;
+using UnityEditor.iOS.Xcode;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -28,7 +30,10 @@ public static class ShoalingWithKinSetup
 {
     const string ScenePath = "Assets/Scenes/ShoalingWithKin.unity";
     const string MaterialDir = "Assets/ShoalingWithKin/Materials";
-    const string BundleId = "io.holokit.shoalingwithkin";
+    const string BundleId = "org.realitydeslab.shoalingwithkin";
+    const string Version = "0.1.0";
+    const string IconPath = "Assets/ShoalingWithKin/Icon/AppIcon.png";
+    const string BuildNumberVariable = "SHOALING_BUILD_NUMBER";
     const string TeamId = "KR9H35SQQ9";
     const string BuildPath = "Builds/iOS";
     const int TicksToWait = 20;
@@ -59,12 +64,54 @@ public static class ShoalingWithKinSetup
         PlayerSettings.iOS.cameraUsageDescription = "Shoaling With Kin uses the camera for AR, hand tracking, and asking Luna what your hand is touching.";
         // HoloKit's Stereo is landscape left; locking Mono to it keeps the frames sent to Luna upright.
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+        // HoloKit is an iPhone headset; full screen also exempts the single orientation from iPad multitasking rules.
+        PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneOnly;
+        PlayerSettings.iOS.requiresFullScreen = true;
+        PlayerSettings.bundleVersion = Version;
+        ApplyBuildNumber();
+        ApplyIcon();
         foreach (var rule in HoloKitProjectValidation.iOSRules.Where(r => !r.CheckPredicate()))
         {
             Debug.Log($"[ShoalingWithKinSetup] Fixing: {rule.FixItMessage}");
             rule.FixIt();
         }
         AssetDatabase.SaveAssets();
+    }
+
+    /// <summary>SHOALING_BUILD_NUMBER, when set, becomes CFBundleVersion (must grow for each TestFlight upload).</summary>
+    static void ApplyBuildNumber()
+    {
+        var number = Environment.GetEnvironmentVariable(BuildNumberVariable);
+        if (!string.IsNullOrWhiteSpace(number))
+            PlayerSettings.iOS.buildNumber = number.Trim();
+        Debug.Log($"[ShoalingWithKinSetup] Version {PlayerSettings.bundleVersion} ({PlayerSettings.iOS.buildNumber})");
+    }
+
+    /// <summary>One 1024 px icon, scaled by Unity to every iOS size. No alpha: App Store rejects it.</summary>
+    static void ApplyIcon()
+    {
+        if (AssetImporter.GetAtPath(IconPath) is not TextureImporter importer)
+            throw new Exception($"Icon not found at {IconPath}.");
+        importer.alphaSource = TextureImporterAlphaSource.None;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.npotScale = TextureImporterNPOTScale.None;
+        importer.mipmapEnabled = false;
+        importer.SaveAndReimport();
+        var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
+        PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+    }
+
+    /// <summary>The app only uses HTTPS (exempt encryption), so TestFlight needs no compliance answer.</summary>
+    [PostProcessBuild]
+    public static void OnPostProcessBuild(BuildTarget target, string path)
+    {
+        if (target != BuildTarget.iOS)
+            return;
+        var plistPath = Path.Combine(path, "Info.plist");
+        var plist = new PlistDocument();
+        plist.ReadFromFile(plistPath);
+        plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
+        plist.WriteToFile(plistPath);
     }
 
     static void WriteKeyFile()
@@ -196,6 +243,7 @@ public static class ShoalingWithKinSetup
     [MenuItem("Shoaling With Kin/Build iOS")]
     public static void BuildIOS()
     {
+        ApplyBuildNumber();
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {
             scenes = new[] { ScenePath },
