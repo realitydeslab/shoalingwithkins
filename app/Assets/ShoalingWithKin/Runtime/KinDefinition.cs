@@ -3,6 +3,15 @@ using UnityEngine;
 
 namespace ShoalingWithKin
 {
+    /// <summary>How the wearer picks a kin.</summary>
+    public enum KinMode
+    {
+        /// <summary>Skin on the kin: rock or tree, at the creek.</summary>
+        Touch,
+        /// <summary>The index finger aimed at the kin (or the hand on it): rock, table or chair, indoors too.</summary>
+        Point,
+    }
+
     /// <summary>How the shoal makes camp with a kin once the hand touches it.</summary>
     public enum ShoalGesture
     {
@@ -59,6 +68,35 @@ namespace ShoalingWithKin
                 Color = new Color(0.65f, 1f, 0.45f),
                 Gesture = ShoalGesture.Climb,
                 Voice = KinVoice.Leaves,
+            },
+        };
+
+        /// <summary>Point mode: things in a room (and a stone brought in) that the fish can be sent to.</summary>
+        public static KinDefinition[] PointDefaults() => new[]
+        {
+            new KinDefinition
+            {
+                Id = "rock",
+                Description = "A rock, stone, or boulder",
+                Color = new Color(0.55f, 0.85f, 1f),
+                Gesture = ShoalGesture.Enter,
+                Voice = KinVoice.Stone,
+            },
+            new KinDefinition
+            {
+                Id = "table",
+                Description = "A table or desk: its top, edge, or legs",
+                Color = new Color(1f, 0.78f, 0.4f),
+                Gesture = ShoalGesture.Enter,
+                Voice = KinVoice.Leaves,
+            },
+            new KinDefinition
+            {
+                Id = "chair",
+                Description = "A chair, stool, or seat",
+                Color = new Color(1f, 0.55f, 0.9f),
+                Gesture = ShoalGesture.Enter,
+                Voice = KinVoice.Water,
             },
         };
     }

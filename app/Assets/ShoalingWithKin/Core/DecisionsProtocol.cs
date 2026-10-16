@@ -18,6 +18,44 @@ namespace ShoalingWithKin
         }
     }
 
+    /// <summary>
+    /// How the wearer picks a kin, and the words Luna reads for it. Keep in sync with tools/bench_touch.py.
+    /// </summary>
+    public sealed class DecisionsQuestion
+    {
+        public readonly string Context;
+        public readonly string Instructions;
+        public readonly string OtherCriterion;
+        public readonly string NothingCriterion;
+
+        DecisionsQuestion(string context, string instructions, string other, string nothing)
+        {
+            Context = context;
+            Instructions = instructions;
+            OtherCriterion = other;
+            NothingCriterion = nothing;
+        }
+
+        /// <summary>Skin contact only: rock and tree at the creek (44/44 on tools/testset).</summary>
+        public static readonly DecisionsQuestion Touch = new(
+            "First-person view from a camera worn on the person's face while they walk along a creek. " +
+            "Any hand or arm reaching in from the bottom of the frame belongs to the wearer.",
+            "What is the wearer's hand physically touching right now? Skin must be in contact; hovering near, " +
+            "pointing at, or casting a shadow on something is not touching.",
+            "Something else: water, ground, railing, clothing, another object",
+            "No hand visible, or the hand touches nothing");
+
+        /// <summary>What the index finger is aimed at, or the hand touches (30/30 on tools/testset-point).</summary>
+        public static readonly DecisionsQuestion Point = new(
+            "First-person view from a camera worn on the person's face. " +
+            "Any hand or arm reaching in from the bottom of the frame belongs to the wearer.",
+            "What is the wearer's hand pointing at, or touching, right now? Follow the extended index finger " +
+            "to the first object it is aimed at. A hand that is open, waving, or relaxed and touches nothing " +
+            "is not pointing.",
+            "Something else: wall, window, floor, screen, water, another object",
+            "No hand visible, or the hand neither points at nor touches anything");
+    }
+
     /// <summary>One answer from the Decisions API: the touch distribution over kin, other and nothing.</summary>
     public sealed class TouchDecision
     {
@@ -30,7 +68,7 @@ namespace ShoalingWithKin
     }
 
     /// <summary>
-    /// The System One request and response for "what is the wearer's hand touching?".
+    /// The System One request and response for "what is the wearer's hand touching (or pointing at)?".
     /// Endpoint: POST https://openrouter.ai/api/v1/systemone. The image goes in <c>state</c> as an
     /// OpenAI chat-style <c>image_url</c> part: it is the only shape the endpoint reads as an image
     /// (other shapes are read as base64 text, ~21k tokens and wrong answers).
@@ -43,17 +81,6 @@ namespace ShoalingWithKin
         public const string OtherId = "other";
         public const string NothingId = "nothing";
 
-        public const string Context =
-            "First-person view from a camera worn on the person's face while they walk along a creek. " +
-            "Any hand or arm reaching in from the bottom of the frame belongs to the wearer.";
-
-        public const string Instructions =
-            "What is the wearer's hand physically touching right now? Skin must be in contact; hovering near, " +
-            "pointing at, or casting a shadow on something is not touching.";
-
-        const string OtherCriterion = "Something else: water, ground, railing, clothing, another object";
-        const string NothingCriterion = "No hand visible, or the hand touches nothing";
-
         /// <summary>Kin ids plus the two outcomes every request carries, in display order.</summary>
         public static List<string> Outcomes(IReadOnlyList<KinSpec> kin)
         {
@@ -65,8 +92,11 @@ namespace ShoalingWithKin
             return ids;
         }
 
-        public static string BuildRequestJson(string model, string jpegBase64, IReadOnlyList<KinSpec> kin, string sessionId = null)
+        /// <summary>The request body; <paramref name="question"/> defaults to <see cref="DecisionsQuestion.Touch"/>.</summary>
+        public static string BuildRequestJson(string model, string jpegBase64, IReadOnlyList<KinSpec> kin, string sessionId = null,
+            DecisionsQuestion question = null)
         {
+            question ??= DecisionsQuestion.Touch;
             if (kin == null || kin.Count == 0)
                 throw new ArgumentException("At least one kin is needed.", nameof(kin));
             var criteria = new JObject();
@@ -76,15 +106,15 @@ namespace ShoalingWithKin
                     throw new ArgumentException($"'{k.Id}' is reserved.", nameof(kin));
                 criteria[k.Id] = k.Description;
             }
-            criteria[OtherId] = OtherCriterion;
-            criteria[NothingId] = NothingCriterion;
+            criteria[OtherId] = question.OtherCriterion;
+            criteria[NothingId] = question.NothingCriterion;
 
             var body = new JObject
             {
                 ["model"] = model,
                 ["state"] = new JArray
                 {
-                    new JObject { ["type"] = "text", ["text"] = Context },
+                    new JObject { ["type"] = "text", ["text"] = question.Context },
                     new JObject
                     {
                         ["type"] = "image_url",
@@ -96,7 +126,7 @@ namespace ShoalingWithKin
                     [QuestionId] = new JObject
                     {
                         ["type"] = "choice",
-                        ["instructions"] = Instructions,
+                        ["instructions"] = question.Instructions,
                         ["criteria"] = criteria,
                     },
                 },

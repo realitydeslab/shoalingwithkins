@@ -30,12 +30,13 @@ namespace ShoalingWithKin
         public float DisplaySmoothing;
 
         /// <summary>
-        /// Touches score ~1.0 and hovers ≤ 0.17 on the 512 px test set, so 0.6 / 0.35 leaves room on both sides.
+        /// Touches score ~1.0 and hovers ≤ 0.17 on the 512 px test set; with five outcomes (Point mode) a correct
+        /// kin scores 0.58–0.92 and a wrong one ≤ 0.21. 0.5 / 0.35 leaves room on both sides.
         /// One frame to enter keeps the response near the request latency; two to exit rides out one missed frame.
         /// </summary>
         public static KinMatcherSettings Default => new()
         {
-            EnterThreshold = 0.6f,
+            EnterThreshold = 0.5f,
             ExitThreshold = 0.35f,
             EnterCount = 1,
             ExitCount = 2,

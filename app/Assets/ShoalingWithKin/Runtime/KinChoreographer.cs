@@ -32,6 +32,7 @@ namespace ShoalingWithKin
             m_Detector.KinMatched += OnMatched;
             m_Detector.KinReleased += OnReleased;
             m_Detector.Updated += OnUpdated;
+            m_Detector.ModeChanged += OnModeChanged;
         }
 
         void OnDestroy()
@@ -41,6 +42,7 @@ namespace ShoalingWithKin
             m_Detector.KinMatched -= OnMatched;
             m_Detector.KinReleased -= OnReleased;
             m_Detector.Updated -= OnUpdated;
+            m_Detector.ModeChanged -= OnModeChanged;
         }
 
         void OnMatched(KinDefinition kin, Vector3 point)
@@ -54,6 +56,8 @@ namespace ShoalingWithKin
             m_Soundscape?.Stop(kin);
             m_Shoal?.Release();
         }
+
+        void OnModeChanged() => m_Soundscape?.Prepare(m_Detector.Kin);
 
         void OnUpdated()
         {

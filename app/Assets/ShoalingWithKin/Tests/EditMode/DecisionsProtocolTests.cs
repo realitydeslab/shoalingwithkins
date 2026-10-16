@@ -43,6 +43,25 @@ namespace ShoalingWithKin.Tests
         }
 
         [Test]
+        public void PointQuestionAsksWhatTheFingerIsAimedAt()
+        {
+            var kin = new[] { new KinSpec("rock", "r"), new KinSpec("table", "t"), new KinSpec("chair", "c") };
+            var body = JObject.Parse(DecisionsProtocol.BuildRequestJson("m", "QUJD", kin, question: DecisionsQuestion.Point));
+            var question = (JObject)body["questions"][DecisionsProtocol.QuestionId];
+            StringAssert.Contains("pointing at", (string)question["instructions"]);
+            Assert.AreEqual(DecisionsQuestion.Point.Context, (string)body["state"][0]["text"]);
+            CollectionAssert.AreEqual(new[] { "rock", "table", "chair", "other", "nothing" },
+                ((JObject)question["criteria"]).Properties().Select(p => p.Name));
+        }
+
+        [Test]
+        public void TouchIsTheDefaultQuestion()
+        {
+            var body = JObject.Parse(DecisionsProtocol.BuildRequestJson("m", "QUJD", Kin));
+            Assert.AreEqual(DecisionsQuestion.Touch.Instructions, (string)body["questions"][DecisionsProtocol.QuestionId]["instructions"]);
+        }
+
+        [Test]
         public void ReservedIdsAreRejected()
         {
             Assert.Throws<ArgumentException>(() =>

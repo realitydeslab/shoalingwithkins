@@ -5,8 +5,9 @@ using UnityEngine;
 namespace ShoalingWithKin
 {
     /// <summary>
-    /// Live touch probabilities. Mono: screen bars, latency/cost stats and the frame Luna saw.
-    /// Stereo: world-space bars below the gaze (TRIGGER toggles them) and the stereo info band.
+    /// Live touch (or point) probabilities. Mono: screen bars, latency/cost stats, the frame Luna saw, and
+    /// buttons for pause and Touch/Point mode. Stereo: world-space bars below the gaze (TRIGGER toggles them)
+    /// and the stereo info band.
     /// </summary>
     public class KinHud : MonoBehaviour
     {
@@ -37,12 +38,25 @@ namespace ShoalingWithKin
             m_Camera = FindFirstObjectByType<HoloKitCameraManager>();
             if (m_Camera != null)
                 m_Camera.OnStereoTrigger += ToggleStereoHud;
+            if (m_Detector != null)
+                m_Detector.ModeChanged += RebuildStereoHud;
         }
 
         void OnDestroy()
         {
             if (m_Camera != null)
                 m_Camera.OnStereoTrigger -= ToggleStereoHud;
+            if (m_Detector != null)
+                m_Detector.ModeChanged -= RebuildStereoHud;
+        }
+
+        /// <summary>The rows follow the outcomes, which change with the mode; LateUpdate builds them again.</summary>
+        void RebuildStereoHud()
+        {
+            if (m_Stereo != null)
+                Destroy(m_Stereo.gameObject);
+            m_Stereo = null;
+            m_Rows.Clear();
         }
 
         void ToggleStereoHud() => m_StereoVisible = !m_StereoVisible;
@@ -72,9 +86,10 @@ namespace ShoalingWithKin
             if (m_Camera != null)
             {
                 var matched = m_Detector.Matcher?.Matched;
-                m_StereoInfo[0] = matched != null ? $"MATCH {matched.ToUpperInvariant()}" : "touching: —";
-                m_StereoInfo[1] = m_Detector.Kin.Count > 0 ? $"{m_Detector.Kin[0].Id} {P(m_Detector.Kin[0].Id):P0}" : "";
-                m_StereoInfo[2] = m_Detector.Kin.Count > 1 ? $"{m_Detector.Kin[1].Id} {P(m_Detector.Kin[1].Id):P0}" : "";
+                var leading = m_Detector.Matcher?.Leading;
+                m_StereoInfo[0] = matched != null ? $"MATCH {matched.ToUpperInvariant()}" : $"{m_Detector.Verb.ToLowerInvariant()}: —";
+                m_StereoInfo[1] = leading != null ? $"{leading} {P(leading):P0}" : "";
+                m_StereoInfo[2] = $"{m_Detector.Mode.ToString().ToLowerInvariant()} mode";
                 m_StereoInfo[3] = $"{m_Detector.LastLatency * 1000f:F0} ms";
                 m_Camera.StereoInfo = m_StereoInfo;
             }
@@ -153,7 +168,7 @@ namespace ShoalingWithKin
 
             var matched = m_Detector.Matcher?.Matched;
             m_Big.normal.textColor = matched != null ? ColorOf(matched) : Color.white;
-            GUI.Label(new Rect(x, y, w, row * 1.3f), matched != null ? $"Touching {matched}" : "Touching: —", m_Big);
+            GUI.Label(new Rect(x, y, w, row * 1.3f), matched != null ? $"{m_Detector.Verb} {matched}" : $"{m_Detector.Verb}: —", m_Big);
             y += row * 1.4f;
 
             foreach (var id in m_Detector.Outcomes)
@@ -189,6 +204,10 @@ namespace ShoalingWithKin
 
             if (GUI.Button(new Rect(x, Screen.height - 170f * s, 260f * s, 80f * s), m_Detector.Running ? "Pause Luna" : "Resume Luna", m_Button))
                 m_Detector.Running = !m_Detector.Running;
+            bool point = m_Detector.Mode == KinMode.Point;
+            if (GUI.Button(new Rect(x + 280f * s, Screen.height - 170f * s, 360f * s, 80f * s),
+                    point ? "Point: rock·table·chair" : "Touch: rock·tree", m_Button))
+                m_Detector.SetMode(point ? KinMode.Touch : KinMode.Point);
         }
     }
 }
