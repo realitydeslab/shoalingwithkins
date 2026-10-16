@@ -26,6 +26,8 @@ namespace ShoalingWithKin
         [SerializeField] float m_HeightSpread = 0.5f;
         [SerializeField] float m_CruiseSpeed = 0.35f;
         [SerializeField] float m_MaxSpeed = 1.4f;
+        [Tooltip("Fish never swim closer than this to the wearer's eyes, even on the way to camp.")]
+        [SerializeField] float m_HeadClearance = 0.45f;
 
         [Header("Boids")]
         [SerializeField] float m_NeighbourRadius = 0.3f;
@@ -59,6 +61,7 @@ namespace ShoalingWithKin
         ShoalGesture m_Gesture;
         Vector3 m_CampPoint, m_TrunkAxis, m_LeanPoint;
         float m_CampStart, m_LeanWeight, m_Tint;
+        float m_Clock;  // simulation time, so the shoal can be stepped outside Play mode (previews)
         Color m_TintColor = Color.white;
 
         public bool Camping => m_Camping;
@@ -83,7 +86,7 @@ namespace ShoalingWithKin
             // A trunk's axis is behind the touched bark; a stone is entered just past the hand.
             m_TrunkAxis = point + away * m_TrunkRadius;
             m_CampPoint = kin.Gesture == ShoalGesture.Enter ? point + away * 0.06f : point;
-            m_CampStart = Time.time;
+            m_CampStart = m_Clock;
             m_TintColor = kin.Color;
             for (int i = 0; i < m_Count; i++)
             {
@@ -107,8 +110,13 @@ namespace ShoalingWithKin
             }
         }
 
-        void Awake()
+        void Awake() => EnsureInitialized();
+
+        /// <summary>Allocates and scatters the fish around the head; safe to call more than once.</summary>
+        public void EnsureInitialized()
         {
+            if (m_Pos != null)
+                return;
             m_Count = Mathf.Clamp(m_Count, 1, 1023);
             m_Mesh = FishMesh.Create();
             m_Props = new MaterialPropertyBlock();
@@ -149,7 +157,14 @@ namespace ShoalingWithKin
 
         void Update()
         {
-            float dt = Mathf.Min(Time.deltaTime, 0.05f);
+            Step(Mathf.Min(Time.deltaTime, 0.05f));
+            Draw();
+        }
+
+        /// <summary>Advances the shoal by <paramref name="dt"/> seconds.</summary>
+        public void Step(float dt)
+        {
+            m_Clock += dt;
             var head = HeadPose.Get();
             var centre = head != null ? head.position : Vector3.zero;
             float targetTint = m_Camping ? 1f : m_LeanWeight * 0.5f;
@@ -157,7 +172,7 @@ namespace ShoalingWithKin
 
             for (int i = 0; i < m_Count; i++)
             {
-                bool waiting = m_Camping && Time.time - m_CampStart < m_Delay[i];
+                bool waiting = m_Camping && m_Clock - m_CampStart < m_Delay[i];
                 Vector3 steer = m_Camping && !waiting ? CampSteer(i, dt) : RoamSteer(i, centre) + Flock(i) + LeanSteer(i);
                 // Roaming (or not yet leaving for a new camp after a switch) fish re-emerge.
                 if (!m_Camping || waiting)
@@ -167,10 +182,10 @@ namespace ShoalingWithKin
                     m_Vel[i] = Vector3.zero;
                     continue;
                 }
+                steer += AvoidHead(i, centre);
                 m_Vel[i] = Vector3.ClampMagnitude(m_Vel[i] + steer * dt, m_MaxSpeed);
                 m_Pos[i] += m_Vel[i] * dt;
             }
-            Draw();
         }
 
         Vector3 RoamSteer(int i, Vector3 centre)
@@ -180,11 +195,21 @@ namespace ShoalingWithKin
             float r = Mathf.Max(flat.magnitude, 0.01f);
             var radial = flat / r;
             var tangent = Vector3.Cross(Vector3.up, radial);
-            float targetY = centre.y - m_BelowEyes + m_HeightOffset[i] + 0.1f * Mathf.Sin(Time.time * 0.5f + m_Phase[i]);
+            float targetY = centre.y - m_BelowEyes + m_HeightOffset[i] + 0.1f * Mathf.Sin(m_Clock * 0.5f + m_Phase[i]);
             var desired = tangent * m_CruiseSpeed
                           + radial * ((m_OrbitRadius + m_RadiusOffset[i] - r) * 1.2f)
                           + Vector3.up * ((targetY - m_Pos[i].y) * 1.2f);
             return (desired - m_Vel[i]) * 1.5f;
+        }
+
+        Vector3 AvoidHead(int i, Vector3 centre)
+        {
+            var away = m_Pos[i] - centre;
+            float d = away.magnitude;
+            if (d >= m_HeadClearance)
+                return Vector3.zero;
+            var dir = d > 1e-4f ? away / d : Vector3.up;
+            return dir * ((m_HeadClearance - d) * 40f);
         }
 
         Vector3 LeanSteer(int i)
@@ -226,7 +251,7 @@ namespace ShoalingWithKin
             if (m_Gesture == ShoalGesture.Climb)
             {
                 m_Climb[i] = Mathf.Min(1f, m_Climb[i] + dt / m_ClimbSeconds);
-                float a = m_Phase[i] + Time.time * 1.6f;
+                float a = m_Phase[i] + m_Clock * 1.6f;
                 float radius = m_TrunkRadius + 0.12f;
                 var target = m_TrunkAxis + new Vector3(Mathf.Cos(a) * radius, m_Climb[i] * m_ClimbHeight, Mathf.Sin(a) * radius);
                 float fade = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.75f, 1f, m_Climb[i]));
@@ -248,8 +273,23 @@ namespace ShoalingWithKin
 
         void Draw()
         {
-            if (m_Material == null)
+            if (m_Material == null || !PrepareInstances())
                 return;
+            Graphics.DrawMeshInstanced(m_Mesh, 0, m_Material, m_Matrices, m_Count, m_Props,
+                ShadowCastingMode.Off, false, gameObject.layer);
+        }
+
+        /// <summary>Draws the shoal into a command buffer (offline previews render it with a camera).</summary>
+        public void Record(CommandBuffer commands)
+        {
+            if (m_Material != null && PrepareInstances())
+                commands.DrawMeshInstanced(m_Mesh, 0, m_Material, 0, m_Matrices, m_Count, m_Props);
+        }
+
+        bool PrepareInstances()
+        {
+            if (m_Pos == null)
+                return false;
             for (int i = 0; i < m_Count; i++)
             {
                 float scale = m_Size[i] * (1f - Mathf.SmoothStep(0f, 1f, m_Submerge[i]));
@@ -260,8 +300,7 @@ namespace ShoalingWithKin
             }
             m_Props.SetVectorArray(ColorId, m_Colors);
             m_Props.SetFloatArray(PhaseId, m_Phase);
-            Graphics.DrawMeshInstanced(m_Mesh, 0, m_Material, m_Matrices, m_Count, m_Props,
-                ShadowCastingMode.Off, false, gameObject.layer);
+            return true;
         }
     }
 }
