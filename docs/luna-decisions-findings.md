@@ -75,3 +75,18 @@ Measured from this Mac's network connection; phone-on-cellular latency at the cr
 ```sh
 OPENROUTER_API_KEY=… python3 tools/bench_touch.py tools/testset --nearest --reps 2
 ```
+
+## Point mode: rock / table / chair (2026-10-16)
+
+Question: what is the wearer's index finger aimed at (or hand touching) — rock, table, chair, other, nothing?
+Request: `DecisionsQuestion.Point` (same endpoint and image part as Touch, ~449 input tokens).
+
+| Run | Result |
+|---|---|
+| Offline, 15 generated photos (`tools/testset-point/`), 512 px nearest, ×2 | 30/30 correct; kin p 0.58–0.92, wrong kin ≤ 0.21; p50 349 ms ([sheet](testset-point-results.jpg)) |
+| Same + `tree` as a fourth kin, on both test sets | 27/29 — hand flat on table → nothing, trees through a window pull "tree"; so tree stays in Touch mode |
+| iPhone 17 Pro, office, 15 min console (`app/Logs/device-00008150-point.log`) | 515/516 answered, 0 errors, 3.7 Hz, avg 260–375 ms, $0.023 (~$0.60/h) |
+| Recorded frames (every 4th, 130), hand-labelled ([sheet](device-point-results.jpg)) | table 23/24 top-1, 21/24 ≥ 0.5 · chair 8/8 top-1, 5/8 ≥ 0.5 · other 11/11 · no hand 87, **0 false matches** |
+
+Limits: chairs 3 m away next to desks score 0.46–0.49 (table 0.31–0.38 second); no rock was on hand indoors.
+The fish go 1.5 m along the eye→fingertip line: ARKit here has no world-ray raycast, so the distance is fixed.

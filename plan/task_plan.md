@@ -28,6 +28,16 @@ music and sends the fish shoal into that kin.
 - [ ] P0 First launch on iPhone A — BLOCKED: SpringBoard denies launch ("profile has not been explicitly trusted"); same cert/profile as HoloKit Pinch, which launches. Needs a tap / trust on the phone
 - [x] P0 Apply code-review findings (7/7: stuck in-flight on parse/handler exceptions, fish hidden after kin switch, MirrorY→MirrorX + HoloKit mono orientation lock, match timeout, linear colours, HUD label width, missing-outcome decay); tests 22/22, rebuilt + reinstalled
 - [x] P1 README + findings doc
+- [x] P0 (2026-10-16) Point mode — user asked to judge pointing at a rock, table or chair:
+  - offline: 15 generated photos (`tools/testset-point/`), `bench_touch.py --question point` → 30/30, p50 349 ms
+    (`docs/testset-point-results.jpg`); adding tree to Point drops to 27/29, so Point = rock/table/chair, Touch = rock/tree
+  - app: `KinMode` Touch|Point (Mono HUD button, remembered), `DecisionsQuestion.Touch/Point`, enter threshold 0.6 → 0.5
+    (Point peaks 0.58–0.92, wrong kin ≤ 0.21), fish go 1.5 m along eye→fingertip (ARKit has no world-ray raycast)
+  - verified: EditMode 24/24, build 0.1.0 (3) installed on iPhone 17 Pro, live: Point mode, 3–4 Hz, first table match p=0.54
+- [x] P1 Device accuracy for Point mode (130 recorded frames, hand-labelled): table 21/24 matched, chair 5/8, other 11/11, 0 false matches — `docs/device-point-results.jpg`
+- [ ] P2 Far chairs sit at 0.46–0.49: try enter = top kin ≥ 0.45 with a 0.15 lead over the next kin (re-check offline + device)
+- [ ] P1 Rock in Point mode on the device (bring a stone in, or at the creek)
+- [ ] P2 Log label says "(hand)" for the aim point in Point mode — cosmetic
 - [ ] Commit (waiting for the user to ask)
 
 ## Out of scope this pass (P2)
